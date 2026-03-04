@@ -1,0 +1,271 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>QA Extraction UI</title>
+  <link rel="stylesheet" href="/static/styles.css">
+  <style>
+    .row { margin: 10px 0; }
+    .hint { color:#666; font-size: 12px; margin-top:4px; }
+    .ok { color: #155724; background: #d4edda; padding:8px 10px; border-radius:6px; display:inline-block; }
+    .err{ color: #721c24; background: #f8d7da; padding:8px 10px; border-radius:6px; display:inline-block; }
+    .muted { color:#555; }
+    .btn { padding: 8px 12px; border: 1px solid #c8ccd2; border-radius: 8px; background: #19b538; cursor: pointer; }
+    .btn:hover { background:#f0f3f7; }
+  </style>
+</head>
+<body>
+
+<div class="container">
+  <h1>Upload Document(s) or Enter PDF URL</h1>
+
+  <!-- Local file upload -->
+  <div class="row">
+    <input type="file" id="pdfInput" multiple>
+    <div class="hint">Pick one or more PDFs. If you click Process now, we'll upload & process the first one automatically.</div>
+  </div>
+
+  <!-- URL input -->
+  <div class="row">
+    <input
+      type="text"
+      id="urlInput"
+      placeholder="Enter PDF URL here..."
+      style="width:60%; padding:8px;"
+    >
+    <div class="hint">If a URL is present, Process will use the URL (no extra step).</div>
+  </div>
+
+  <!-- Company name -->
+  <div class="row">
+    <input
+      type="text"
+      id="companyInput"
+      placeholder="Company name (used in output filename)"
+      style="width:60%; padding:8px;"
+    >
+    <div class="hint">Leave blank to auto‑derive from URL host or file name.</div>
+  </div>
+
+  <!-- Actions -->
+  <div class="row" style="display:flex; gap:10px; align-items:center;">
+    <button class="btn" id="btnProcess">Process → Generate JSON</button>
+    <button class="btn" id="btnAdd" title="Optional: add to the list below without processing">Add (optional)</button>
+    <span class="hint">“Process” is usually enough (URL or chosen file). “Add” is only if you want to queue items first.</span>
+  </div>
+
+  <!-- List of queued items (URLs or uploaded filenames) -->
+  <h2>Queued / Available Sources</h2>
+  <div class="row">
+    <select id="docSelect" style="min-width: 60%; padding:8px;">
+      <option value="">(empty)</option>
+    </select>
+  </div>
+
+  <h2>Result</h2>
+  <div id="qaContainer" class="muted">Status will appear here.</div>
+
+  <div class="row" style="margin-top:16px;">
+    <a class="btn" href="/compare">Open Compare Tool →</a>
+  </div>
+</div>
+
+<script>
+(function () {
+  const pdfInput    = document.getElementById("pdfInput");
+  const urlInput    = document.getElementById("urlInput");
+  const companyIn   = document.getElementById("companyInput");
+  const addBtn      = document.getElementById("btnAdd");
+  const processBtn  = document.getElementById("btnProcess");
+  const uploadRes   = document.getElementById("qaContainer");
+  const docSelect   = document.getElementById("docSelect");
+
+  const isUrl = (s) => /^https?:\/\//i.test((s || "").trim());
+  const setBusy = (b) => document.body.style.cursor = b ? "progress" : "default";
+
+  // Utilities
+  function addToDropdown(val) {
+    if (!val) return;
+    // Avoid duplicates
+    const exists = Array.from(docSelect.options).some(o => o.value === val);
+    if (!exists) {
+      const opt = document.createElement("option");
+      opt.value = val;
+      opt.textContent = val;
+      docSelect.appendChild(opt);
+    }
+    // Set selection to this value
+    docSelect.value = val;
+  }
+
+  function deriveCompanyFromSource(src) {
+    try {
+      if (isUrl(src)) {
+        const u = new URL(src);
+        const host = u.hostname.replace(/^www\./, "");
+        const guess = (host.split(".")[0] || "Company");
+        return guess.replace(/[^A-Za-z0-9_]+/g, "_");
+      } else {
+        const base = (src.split(/[\\/]/).pop() || "Company").replace(/\.[^.]+$/, "");
+        return base.replace(/[^A-Za-z0-9_]+/g, "_");
+      }
+    } catch {
+      return "Company";
+    }
+  }
+
+  async function callUpload(files) {
+    const fd = new FormData();
+    for (const f of files) fd.append("documents", f);
+
+    const res = await fetch("/upload", { method: "POST", body: fd });
+    const data = await res.json();
+    if (!res.ok || data.status !== "success") {
+      throw new Error(data.message || data.error || "Upload failed");
+    }
+    return data.files; // uploaded filenames
+  }
+
+  async function callProcess(company, source) {
+    const res = await fetch("/process", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ company_name: company, source })
+    });
+    const data = await res.json();
+    if (!res.ok) throw new Error(data.error || "Processing failed");
+    return data.output_json;
+  }
+
+  // -------------------------
+  // Optional: "Add" behavior
+  // -------------------------
+  addBtn.addEventListener("click", async () => {
+    const url = urlInput.value.trim();
+    const files = pdfInput.files;
+
+    if (url) {
+      addToDropdown(url);
+      uploadRes.innerHTML = `<span class="ok">Added URL:</span> ${url}`;
+      urlInput.value = "";
+      return;
+    }
+
+    if (files && files.length) {
+      setBusy(true);
+      try {
+        const saved = await callUpload(files);
+        saved.forEach(addToDropdown);
+        uploadRes.innerHTML = `<span class="ok">Uploaded:</span> ${saved.join(", ")}`;
+        pdfInput.value = "";
+      } catch (err) {
+        uploadRes.innerHTML = `<span class="err">${err.message}</span>`;
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    uploadRes.innerHTML = `<span class="err">Provide a URL or choose local file(s) to add.</span>`;
+  });
+
+  // -----------------------------------------------------
+  // Streamlined "Process" behavior (2 steps → 1 click)
+  // -----------------------------------------------------
+  processBtn.addEventListener("click", async () => {
+    const url = urlInput.value.trim();
+    const files = pdfInput.files;
+
+    // 1) If URL present → process immediately using the URL
+    if (url) {
+      let company = (companyIn.value || "").trim();
+      if (!company) company = deriveCompanyFromSource(url);
+
+      setBusy(true);
+      uploadRes.textContent = "Processing URL…";
+      try {
+        const outFile = await callProcess(company, url);
+        addToDropdown(url); // remember it
+        urlInput.value = "";
+
+        uploadRes.innerHTML = `
+          <div class="ok">Success</div>
+          <div>Created: <code>${outFile}</code></div>
+          <div style="margin-top:8px;"><a class="btn" href="/compare">Open Compare Tool →</a></div>
+        `;
+      } catch (err) {
+        uploadRes.innerHTML = `<span class="err">${err.message}</span>`;
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // 2) Else if files chosen → upload then immediately process the first file
+    if (files && files.length) {
+      setBusy(true);
+      uploadRes.textContent = "Uploading…";
+      try {
+        const saved = await callUpload(files);
+        const first = saved[0];
+        addToDropdown(first);
+        pdfInput.value = "";
+
+        let company = (companyIn.value || "").trim();
+        if (!company) company = deriveCompanyFromSource(first);
+
+        uploadRes.textContent = "Processing uploaded file…";
+        const outFile = await callProcess(company, first);
+
+        uploadRes.innerHTML = `
+          <div class="ok">Success</div>
+          <div>Created: <code>${outFile}</code></div>
+          <div style="margin-top:8px;"><a class="btn" href="/compare">Open Compare Tool →</a></div>
+        `;
+      } catch (err) {
+        uploadRes.innerHTML = `<span class="err">${err.message}</span>`;
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // 3) Else if there’s something in the dropdown → process selected
+    const selected = (docSelect.value || "").trim();
+    if (selected) {
+      let company = (companyIn.value || "").trim();
+      if (!company) company = deriveCompanyFromSource(selected);
+
+      setBusy(true);
+      uploadRes.textContent = "Processing…";
+      try {
+        const outFile = await callProcess(company, selected);
+        uploadRes.innerHTML = `
+          <div class="ok">Success</div>
+          <div>Created: <code>${outFile}</code></div>
+          <div style="margin-top:8px;"><a class="btn" href="/compare">Open Compare Tool →</a></div>
+        `;
+      } catch (err) {
+        uploadRes.innerHTML = `<span class="err">${err.message}</span>`;
+      } finally {
+        setBusy(false);
+      }
+      return;
+    }
+
+    // Nothing provided
+    uploadRes.innerHTML = `<span class="err">Provide a URL or choose a file to process.</span>`;
+  });
+
+  // "Enter" on URL field triggers Process (not Add)
+  urlInput.addEventListener("keydown", (e) => {
+    if (e.key === "Enter") {
+      e.preventDefault();
+      processBtn.click();
+    }
+  });
+})();
+</script>
+
+</body>
+</html>

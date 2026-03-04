@@ -1,0 +1,363 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <title>Compare JSON QA Files</title>
+<style>
+body {
+  font-family: Arial;
+  background: #f7f7f7;
+  margin: 0;
+  padding: 20px 40px;
+}
+
+h1 {
+  margin-top: 10px;
+  margin-bottom: 30px;
+  font-size: 26px;
+}
+
+.container-row {
+  display: flex;
+  gap: 40px;
+}
+
+.card {
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.08);
+  width: 100%;
+}
+
+.card h2 {
+  margin-top: 0;
+  font-size: 20px;
+}
+
+.select-row {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 15px;
+}
+
+.qa-box {
+  border: 1px solid #ddd;
+  border-radius: 8px;
+  padding: 15px;
+  min-height: 160px;
+  background: #fafafa;
+}
+
+.summary-box {
+  background: white;
+  padding: 20px;
+  margin-top: 40px;
+  border-radius: 12px;
+  box-shadow: 0 3px 14px rgba(0,0,0,0.06);
+}
+</style>
+</head>
+<body>
+<div style="
+  background:#fff;
+  padding:15px 25px;
+  border-radius:10px;
+  margin-bottom:25px;
+  display:flex;
+  justify-content:space-between;
+">
+  <div style="font-size:20px; font-weight:bold;">Compare CDP Reports</div>
+  <div>
+     <a href="/" style="margin-right:20px;">Generate JSON</a>
+     <a href="/compare" style="font-weight:bold;">Compare JSON</a>
+  </div>
+</div>
+
+<!-- <h1>Compare CDP Reports</h1> -->
+
+<div class="container-row">
+
+  <!-- Left Panel -->
+  <div class="card">
+    <h2 id="company1">Choose JSON File 1</h2>
+
+    <div class="select-row">
+      <select id="file1"></select>
+      <select id="section1"><option value="">Select section</option></select>
+    </div>
+
+    <div class="qa-box">
+      <b>question:</b><div id="q1"></div><br>
+      <b>answer:</b><div id="a1"></div>
+    </div>
+  </div>
+
+  <!-- Right Panel -->
+  <div class="card">
+    <h2 id="company2">Choose JSON File 2</h2>
+
+    <div class="select-row">
+      <select id="file2"></select>
+      <select id="section2"><option value="">Select section</option></select>
+    </div>
+
+    <div class="qa-box">
+      <b>question:</b><div id="q2"></div><br>
+      <b>answer:</b><div id="a2"></div>
+    </div>
+  </div>
+
+</div>
+
+<!-- Summary -->
+<div class="summary-box">
+  <h3>Summary</h3>
+  <div><b>Common Rules:</b> <span id="sum-common"></span></div>
+  <div><b>Total Rules in File 1:</b> <span id="sum-file1"></span></div>
+  <div><b>Total rules in File 2:</b> <span id="sum-file2"></span></div>
+  <!-- <div><b>Checkbox-type answers:</b> <span id="sum-checkbox"></span></div>
+  <div><b>Descriptive-type answers:</b> <span id="sum-descriptive"></span></div> -->
+</div>
+
+
+<script>
+/* Cache for JSON contents */
+const cache = new Map();
+
+/* Section maps keyed by filename */
+const sectionMapByFile = new Map();
+
+/* When DOM loads, get file list */
+document.addEventListener("DOMContentLoaded", () => {
+    loadJsonFiles();
+
+    file1.addEventListener("change", loadSectionsIfBothSelected);
+    file2.addEventListener("change", loadSectionsIfBothSelected);
+
+// REMOVE:
+// section1.addEventListener("change", () => showQA("file1", "section1", "q1", "a1"));
+// section2.addEventListener("change", () => showQA("file2", "section2", "q2", "a2"));
+
+// ADD synced listeners:
+let syncing = false;
+
+section1.addEventListener("change", () => {
+    if (syncing) return;
+    syncing = true;
+
+    section2.value = section1.value;   // sync the right dropdown
+
+    showQA("file1", "section1", "q1", "a1");
+    showQA("file2", "section2", "q2", "a2");
+
+    syncing = false;
+});
+
+section2.addEventListener("change", () => {
+    if (syncing) return;
+    syncing = true;
+
+    section1.value = section2.value;   // sync the left dropdown
+
+    showQA("file1", "section1", "q1", "a1");
+    showQA("file2", "section2", "q2", "a2");
+
+    syncing = false;
+});
+});
+
+/* ------------------------------ */
+/* Load list of available JSONs   */
+/* ------------------------------ */
+function loadJsonFiles() {
+    fetch("/list_json")
+        .then(r => r.json())
+        .then(data => {
+            fillDropdown(file1, data.files);
+            fillDropdown(file2, data.files);
+        });
+}
+
+function fillDropdown(sel, files) {
+    sel.innerHTML = '<option value="">Select JSON file</option>';
+    files.forEach(f => {
+        const opt = document.createElement("option");
+        opt.value = f;
+        opt.textContent = f;
+        sel.appendChild(opt);
+    });
+}
+
+/* ---------------------------------------------------------- */
+/* MAIN CHANGE: load sections ONLY WHEN BOTH FILES SELECTED   */
+/* ---------------------------------------------------------- */
+function loadSectionsIfBothSelected() {
+    const f1 = file1.value;
+    const f2 = file2.value;
+
+    if (!f1 || !f2) {
+        section1.innerHTML = '<option value="">drop down to select section</option>';
+        section2.innerHTML = '<option value="">drop down to select section</option>';
+        return;
+    }
+
+    // 1) fetch common sections
+    fetch(`/common_sections?file1=${f1}&file2=${f2}`)
+        .then(r => r.json())
+        .then(data => {
+            const common = data.common_sections || [];
+
+            // Populate both dropdowns
+            populateSectionDropdown(section1, common);
+            populateSectionDropdown(section2, common);
+
+            // 2) Load both JSON files to compute summary
+            Promise.all([loadJson(f1), loadJson(f2)])
+                .then(([js1, js2]) => {
+                    const sec1 = extractSections(js1);
+                    const sec2 = extractSections(js2);
+
+                    const { checkboxCount, descriptiveCount } = countAnswerTypes(js1, js2);
+
+                    // Summary update
+                    document.getElementById("sum-common").textContent = common.length;
+                    document.getElementById("sum-file1").textContent = sec1.size;
+                    document.getElementById("sum-file2").textContent = sec2.size;
+                    document.getElementById("sum-checkbox").textContent = checkboxCount;
+                    document.getElementById("sum-descriptive").textContent = descriptiveCount;
+                });
+        });
+}
+
+function countAnswerTypes(js1, js2) {
+    const checkboxMarkers = [
+        "☑", "✔", "✓", 
+        "Select all that apply",
+        "Select from:"
+    ];
+
+    let checkboxCount = 0;
+    let descriptiveCount = 0;
+
+    function scan(js) {
+        Object.keys(js).forEach(key => {
+            if (/^\d+$/.test(key)) {
+                js[key].forEach(entry => {
+                    const ans = (entry.answer || "").trim();
+                    if (!ans) return;
+
+                    if (checkboxMarkers.some(m => ans.includes(m)))
+                        checkboxCount++;
+                    else
+                        descriptiveCount++;
+                });
+            }
+        });
+    }
+
+    scan(js1);
+    scan(js2);
+
+    return { checkboxCount, descriptiveCount };
+}
+
+/* -------------------------------------- */
+/* Load and cache JSON                    */
+/* -------------------------------------- */
+function loadJson(filename) {
+    if (cache.has(filename)) {
+        updateCompanyHeaders(filename, cache.get(filename));
+        return Promise.resolve(cache.get(filename));
+    }
+    return fetch(`/json?file=${filename}`)
+        .then(r => r.json())
+        .then(js => {
+            cache.set(filename, js);
+            updateCompanyHeaders(filename, js);
+            return js;
+        });
+}
+
+function updateCompanyHeaders(filename, jsonData) {
+    const name = jsonData.company_name || filename.replace("output_", "").replace(".json", "");
+
+    if (file1.value === filename) {
+        company1.textContent = `Company: ${name}`;
+    }
+    if (file2.value === filename) {
+        company2.textContent = `Company: ${name}`;
+    }
+}
+
+/* ---------------------------------------------------- */
+/* Extract *all section numbers* from top‑level page keys */
+/* ---------------------------------------------------- */
+function extractSections(js) {
+    const set = new Set();
+
+    Object.keys(js).forEach(key => {
+        if (/^\d+$/.test(key)) {
+            const arr = js[key];
+            arr.forEach(entry => {
+                if (entry.section) set.add(entry.section.trim());
+            });
+        }
+    });
+
+    return set;
+}
+
+/* Populate dropdown with common sections */
+function populateSectionDropdown(sel, sections) {
+    sel.innerHTML = '<option value="">drop down to select section</option>';
+    sections.forEach(sec => {
+        const opt = document.createElement("option");
+        opt.value = sec;
+        opt.textContent = sec;
+        sel.appendChild(opt);
+    });
+}
+
+/* -------------------- */
+/* Show Q/A for a file  */
+/* -------------------- */
+function showQA(fileSelId, secSelId, qOutId, aOutId) {
+    const filename = document.getElementById(fileSelId).value;
+    const sectionNo = document.getElementById(secSelId).value;
+
+    if (!filename || !sectionNo) return;
+
+    loadJson(filename).then(js => {
+        let found = null;
+
+        Object.keys(js).forEach(k => {
+            if (/^\d+$/.test(k)) {
+                js[k].forEach(entry => {
+                    if (entry.section === sectionNo) {
+                        found = entry;
+                    }
+                });
+            }
+        });
+
+        document.getElementById(qOutId).textContent = found?.question || "";
+        document.getElementById(aOutId).innerHTML = (found?.answer || "").replace(/\n/g, "<br>");
+    });
+}
+
+/* Sort helper: dotted numbers numerically */
+function compareDotted(a, b) {
+    const A = a.split(".").map(x => parseInt(x));
+    const B = b.split(".").map(x => parseInt(x));
+    for (let i = 0; i < Math.max(A.length, B.length); i++) {
+        const av = A[i] ?? -1;
+        const bv = B[i] ?? -1;
+        if (av !== bv) return av - bv;
+    }
+    return 0;
+}
+</script>
+
+</body>
+</html>
