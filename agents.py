@@ -5,9 +5,8 @@ from pypdf import PdfReader
 from autogen_ext.models.anthropic import AnthropicBedrockChatCompletionClient, BedrockInfo
 from autogen_core.models import ModelInfo
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_agentchat.conditions import TextMentionTermination
-from autogen_core import CancellationToken
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+
 from prompts import *
 import os
 from dotenv import load_dotenv
@@ -48,6 +47,11 @@ class BaseAgent:
                 family="claude-3-7-sonnet",
                 structured_output=True,
             )
+        )
+
+        self.client = OpenAIChatCompletionClient(
+            model="gpt-4o-2024-08-06",
+            # api_key="sk-...", # Optional if you have an OPENAI_API_KEY environment variable set.
         )
 
         # Create the assistant agent
