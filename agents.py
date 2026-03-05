@@ -96,8 +96,8 @@ class BaseAgent:
     async def _analyze_extracted_text(self, text: str, query: str = None, default_message: str = None, save_path: str = None) -> str:
         """Analyze extracted text content."""
         # Prepare the message with the extracted text
-        if query:
-            message = f"Please compare the results from both companies and provide key insights {query}\n\nDocument content:\n{text}"
+        if text:
+            message = f"Please compare the data from both companies and extract key insights.\n\n\n{text}"
         else:
             message = default_message or f"Please analyze this document and provide key insights:\n\nDocument content:\n{text}"
         

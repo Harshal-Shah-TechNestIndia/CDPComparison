@@ -239,17 +239,22 @@ def extract_sections_endpoint():
         return jsonify({"error": err2}), 400
 
 
-    merged: dict = {}
-    merged.update(data1)
-    merged.update(data2)
+    # merged: dict = {}
+    # merged.update(data1)
+    # merged.update(data2)
 
-
+    print(f"prefix {prefix} file1 {file1} and file2 {file2}")
     try:
         result_str1 = extract_section_based_qas(data1, prefix=prefix)  # returns a single formatted string
         result_str2 = extract_section_based_qas(data2, prefix=prefix)  # returns a single formatted string
         
         merged_result_str = f"Data from {file1}:- \n {result_str1}\n\nData from {file2}:- \n {result_str2}"
+
+        # print(f"Raw Data {merged_result_str}")
+
         summary = asyncio.run(summarize(merged_result_str))
+
+        # print(f"Summary Data {summary}")
 
     except Exception as e:
         # In case the callable raises (unexpected data shape, etc.)
