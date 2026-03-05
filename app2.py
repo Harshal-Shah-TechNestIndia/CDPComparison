@@ -63,13 +63,93 @@ def process(company_name, pdf_source):
         print("Could not save")
         # print(results)
 
-if __name__ == "__main__":
-    # You can change this to a local file path if preferred.
-    pdf_source1 = "https://corporate.thermofisher.com/content/dam/tfcorpsite/documents/corporate-social-responsibility/Thermo-Fisher-Scientific-Inc-2024-FINAL-CDP-REPORT.pdf"
-    company_name1 = "Thomas_Fisher"
+def extract_section_based_qas(data, prefix = "7"):
+    """
+    Return all question–answer pairs where:
+    - section starts with '7.'
+    - answer is NOT blank
+    - answer does NOT contain long dot filler like '......'
+    """
+    prefix = prefix + "."
+    results = []
 
-    pdf_source2 = "https://www.merck.com/wp-content/uploads/sites/124/2025/07/2024-CDP-Disclosure.pdf"
-    company_name2 = "Merck"
+    for _, entries in data.items():
+        if isinstance(entries, list):
+            for item in entries:
+                section = item.get("section", "")
+                question = item.get("question", "").strip()
+                answer = item.get("answer", "").strip()
 
-    process(company_name1,pdf_source1)
-    process(company_name2,pdf_source2)
+                if not section.startswith(prefix):
+                    continue
+
+                # Filter: skip blank or dot‑filled answers
+                if answer == "" or ("...." in answer):   # 4+ dots = filler
+                    continue
+
+                results.append({
+                    "section": section,
+                    "question": question,
+                    "answer": answer
+                })
+                
+                # result = (
+                #     f"---\n"
+                #     f"Section: {section}\n"
+                #     f"Question: {question}\n"
+                #     f"Answer: {answer}"
+                # )
+                # results.append(result)
+
+    results = [f"---\n"f"Section: {result["section"]}\nQuestion: {result["question"]}\nAnswer: {result["answer"]}\n\n" for result in results[-15:]]
+    return "\n\n".join(results)
+
+
+from agents import SummarizingAgent
+
+async def summarize(text):
+    agent = SummarizingAgent()
+    summary = await agent.summarize_text(text)
+    return summary
+
+
+# if __name__ == "__main__":
+#     # You can change this to a local file path if preferred.
+#     pdf_source1 = "https://corporate.thermofisher.com/content/dam/tfcorpsite/documents/corporate-social-responsibility/Thermo-Fisher-Scientific-Inc-2024-FINAL-CDP-REPORT.pdf"
+#     company_name1 = "Thomas_Fisher"
+
+#     pdf_source2 = "https://www.merck.com/wp-content/uploads/sites/124/2025/07/2024-CDP-Disclosure.pdf"
+#     company_name2 = "Merck"
+
+#     process(company_name1,pdf_source1)
+#     process(company_name2,pdf_source2)
+
+
+# input_path = "output_corporate.json"
+
+# with open(input_path, "r", encoding="utf-8") as f:
+#     data = json.load(f)
+
+# # Extract all 7.* Q&A
+# qas_7 = extract_section_based_qas(data)
+
+# print(f"Found {len(qas_7)} Q&A entries starting with section '7.'")
+
+# print(qas_7)
+# # Preview a few entries
+# for qa in qas_7[:5]:
+#     print("\n---")
+#     print("Section:", qa["section"])
+#     print("Question:", qa["question"])
+#     print("Answer:", qa["answer"])
+
+
+
+
+# text = """
+# Large language models are capable of performing a wide range of tasks,
+# including summarization, reasoning, and coding assistance. They are
+# increasingly used in enterprise systems to automate document analysis.
+# """
+# import asyncio
+# asyncio.run(summarize(text))

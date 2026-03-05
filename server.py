@@ -5,7 +5,7 @@ import json
 from urllib.parse import urlparse
 from flask import Flask, request, jsonify, abort, render_template
 
-from app2 import process  # <-- your real process() function
+from app2 import process,extract_section_based_qas,summarize  # <-- your real process() function
 
 UPLOAD_FOLDER = "uploads"
 RESULTS_FOLDER = "."   # JSON files saved in project root
@@ -14,6 +14,8 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 app = Flask(__name__)
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+
+import asyncio
 
 
 # ----------------------------------------------------------
@@ -184,6 +186,81 @@ def common_sections():
     common = sorted(sec1.intersection(sec2), key=lambda s: [int(x) for x in s.split(".")])
 
     return jsonify({"common_sections": common})
+
+
+@app.route("/extract_sections", methods=["GET"])
+def extract_sections_endpoint():
+    """
+    Accepts:
+      - prefix: e.g. "7"
+      - file1: JSON filename
+      - file2: JSON filename
+
+    For now: returns empty string
+    """
+
+    prefix = request.args.get("prefix", "").strip()
+    file1 = request.args.get("file1", "").strip()
+    file2 = request.args.get("file2", "").strip()
+
+    # Basic validation
+    if not prefix or not file1 or not file2:
+        return jsonify({"error": "prefix, file1, file2 are required"}), 400
+
+    # Validate filenames
+    for f in (file1, file2):
+        if not f.startswith("output_") or not f.endswith(".json"):
+            return jsonify({"error": f"invalid filename: {f}"}), 400
+        if not os.path.isfile(f):
+            return jsonify({"error": f"file not found: {f}"}), 404
+
+
+    # Helper: load JSON safely
+    def _load_json(path: str):
+        try:
+            with open(path, "r", encoding="utf-8") as fh:
+                data = json.load(fh)
+            if not isinstance(data, dict):
+                return None, f"Top-level JSON is not an object in file: {path}"
+            return data, None
+        except json.JSONDecodeError as e:
+            return None, f"JSON decode error in {path}: {e}"
+        except OSError as e:
+            return None, f"OS error when reading {path}: {e}"
+
+
+    # Load both files
+    data1, err1 = _load_json(file1)
+    if err1:
+        return jsonify({"error": err1}), 400
+
+    data2, err2 = _load_json(file2)
+    if err2:
+        return jsonify({"error": err2}), 400
+
+
+    merged: dict = {}
+    merged.update(data1)
+    merged.update(data2)
+
+
+    try:
+        result_str1 = extract_section_based_qas(data1, prefix=prefix)  # returns a single formatted string
+        result_str2 = extract_section_based_qas(data2, prefix=prefix)  # returns a single formatted string
+        
+        merged_result_str = f"Data from {file1}:- \n {result_str1}\n\nData from {file2}:- \n {result_str2}"
+        summary = asyncio.run(summarize(merged_result_str))
+
+    except Exception as e:
+        # In case the callable raises (unexpected data shape, etc.)
+        return jsonify({"error": f"Failed to extract Q&A: {e}"}), 500
+
+    # If nothing matched, keep the contract and return empty string as "result"
+    # (Your callable already returns "" if nothing is appended; if not, we normalize it.)
+    if not isinstance(summary, str):
+        summary = ""
+
+    return jsonify({"result": summary})
 
 # ----------------------------------------------------------
 # HEALTH CHECK

@@ -88,7 +88,7 @@ h1 {
     </div>
 
     <div class="qa-box">
-      <b>question:</b><div id="q1"></div><br>
+      <b>Question:</b><div id="q1"></div><br>
       <b>answer:</b><div id="a1"></div>
     </div>
   </div>
@@ -103,8 +103,8 @@ h1 {
     </div>
 
     <div class="qa-box">
-      <b>question:</b><div id="q2"></div><br>
-      <b>answer:</b><div id="a2"></div>
+      <b>Question:</b><div id="q2"></div><br>
+      <b>Answer:</b><div id="a2"></div>
     </div>
   </div>
 
@@ -118,6 +118,22 @@ h1 {
   <div><b>Total rules in File 2:</b> <span id="sum-file2"></span></div>
   <!-- <div><b>Checkbox-type answers:</b> <span id="sum-checkbox"></span></div>
   <div><b>Descriptive-type answers:</b> <span id="sum-descriptive"></span></div> -->
+
+
+  <div style="margin-top:25px; margin-bottom:20px; text-align:center;">
+    <button id="genSummaryBtn"
+            style="padding:10px 18px; border:1px solid #666; border-radius:8px; background:white; cursor:pointer;">
+        Generate AI Summary
+    </button>
+</div>
+
+
+<div id="sectionSummary"
+     style="margin-top:20px; padding:10px; background:#fafafa; border-radius:8px; min-height:20px;">
+</div>
+
+  </div>
+
 </div>
 
 
@@ -357,6 +373,156 @@ function compareDotted(a, b) {
     }
     return 0;
 }
+
+// --------------------------------------------------------------------
+// NEW: Generate Summary Button => Calls our /extract_sections endpoint
+// --------------------------------------------------------------------
+/** Minimal, dependency-free formatter for our server's summary text.
+ *  - Supports #/##/### headings, bullets (- * •), numbered lists, bold/italic/code, links, paragraphs.
+ *  - Avoids executing any script by not allowing <script> in the input. */
+function formatSummaryTextToHTML(raw) {
+  if (!raw || typeof raw !== "string") return "";
+
+  // 0) Normalize newlines
+  const text = raw.replace(/\r\n?/g, "\n");
+
+  // 1) Escape HTML first to prevent injection, then we’ll selectively unescape
+  //    our own tags that we create below.
+  const esc = (s) =>
+    s
+      .replace(/&/g, "&amp;")
+      .replace(/</g, "&lt;")
+      .replace(/>/g, "&gt;");
+
+  // 2) Line-by-line parse to build blocks (headings, lists, paragraphs)
+  const lines = text.split("\n");
+  let html = "";
+  let inUL = false;
+  let inOL = false;
+
+  const closeLists = () => {
+    if (inUL) { html += "</ul>"; inUL = false; }
+    if (inOL) { html += "</ol>"; inOL = false; }
+  };
+
+  // Helper: convert inline markups on a single line (after escaping)
+  const renderInline = (s) => {
+    // Bold **text**
+    s = s.replace(/\*\*(.+?)\*\*/g, "<strong>$1</strong>");
+    // Italic _text_
+    s = s.replace(/(^|[^_])_([^_]+)_/g, '$1<em>$2</em>');
+    // Inline code `code`
+    s = s.replace(/`([^`]+)`/g, "<code>$1</code>");
+    // Auto-link URLs
+    s = s.replace(
+      /\b(https?:\/\/[^\s<]+[^\s<\.)])/g,
+      '<a href="$1" target="_blank" rel="noopener noreferrer">$1</a>'
+    );
+    return s;
+  };
+
+  for (let i = 0; i < lines.length; i++) {
+    const rawLine = lines[i];
+    const line = rawLine.trim();
+
+    // Blank line: close lists and add spacing
+    if (line === "") {
+      closeLists();
+      html += "<br/>";
+      continue;
+    }
+
+    // Headings
+    if (/^###\s+/.test(line)) {
+      closeLists();
+      html += `<h3>${renderInline(esc(line.replace(/^###\s+/, "")))}</h3>`;
+      continue;
+    }
+    if (/^##\s+/.test(line)) {
+      closeLists();
+      html += `<h2>${renderInline(esc(line.replace(/^##\s+/, "")))}</h2>`;
+      continue;
+    }
+    if (/^#\s+/.test(line)) {
+      closeLists();
+      html += `<h1>${renderInline(esc(line.replace(/^#\s+/, "")))}</h1>`;
+      continue;
+    }
+
+    // Numbered list: "1. item"
+    if (/^\d+\.\s+/.test(line)) {
+      if (inUL) { html += "</ul>"; inUL = false; }
+      if (!inOL) { html += "<ol>"; inOL = true; }
+      html += `<li>${renderInline(esc(line.replace(/^\d+\.\s+/, "")))}</li>`;
+      continue;
+    }
+
+    // Bulleted list: "- item", "* item", "• item"
+    if (/^(-|\*|•)\s+/.test(line)) {
+      if (inOL) { html += "</ol>"; inOL = false; }
+      if (!inUL) { html += "<ul>"; inUL = true; }
+      html += `<li>${renderInline(esc(line.replace(/^(-|\*|•)\s+/, "")))}</li>`;
+      continue;
+    }
+
+    // Default: paragraph line
+    closeLists();
+    html += `<p>${renderInline(esc(line))}</p>`;
+  }
+
+  // Close any open list at the end
+  closeLists();
+  return html;
+}
+
+
+document.getElementById("genSummaryBtn").addEventListener("click", () => {
+  const f1 = file1.value;
+  const f2 = file2.value;
+
+  if (!f1 || !f2) {
+    document.getElementById("sectionSummary").textContent =
+      "Please select both JSON files first.";
+    return;
+  }
+
+  // Hardcode prefix = 7 for now (can be user-editable later)
+  const prefix = "7";
+
+  const url =
+    `/extract_sections?prefix=${encodeURIComponent(prefix)}`
+    + `&file1=${encodeURIComponent(f1)}`
+    + `&file2=${encodeURIComponent(f2)}`;
+
+  // Status message: keep as plain text
+  const container = document.getElementById("sectionSummary");
+  container.textContent = "Generating AI Summary…";
+
+  fetch(url)
+    .then((r) => r.json())
+    .then((data) => {
+      const raw = data?.result || "";
+      if (!raw) {
+        container.textContent = "(empty)";
+        return;
+      }
+
+      // Render pretty HTML from the summary
+      const formatted = formatSummaryTextToHTML(raw);
+
+      // Now we can safely set innerHTML because we escaped user-provided content
+      // and only injected basic tags we created ourselves.
+      container.innerHTML = `
+        <div class="summary-block">
+          ${formatted}
+        </div>
+      `;
+    })
+    .catch((err) => {
+      container.textContent = "Error: " + err;
+    });
+});
+
 </script>
 
 </body>
