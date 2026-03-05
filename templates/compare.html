@@ -630,7 +630,10 @@ document.getElementById("genSummaryBtn").addEventListener("click", () => {
   }
 
   // Hardcode prefix = 7 for now (can be user-editable later)
-  const prefix = "7";
+
+  // Extract top-level prefix from the section dropdown
+  const selected = section1.value;
+  const prefix = selected ? selected.split(".")[0] : "";
 
   const url =
     `/extract_sections?prefix=${encodeURIComponent(prefix)}`
