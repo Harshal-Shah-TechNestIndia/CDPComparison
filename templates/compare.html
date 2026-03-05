@@ -56,6 +56,55 @@ h1 {
   border-radius: 12px;
   box-shadow: 0 3px 14px rgba(0,0,0,0.06);
 }
+
+.qa-card {
+  border: 1px solid #e5e7eb;
+  border-left: 4px solid #6c5ce7;
+  border-radius: 8px;
+  background: #fff;
+  padding: 10px 12px;
+  margin: 8px 0;
+}
+.qa-card .sec { font-weight: 700; color: #374151; margin-bottom: 6px; }
+.qa-card .q   { margin: 6px 0; }
+.qa-card .a   { margin: 6px 0; color: #1f2937; }
+
+
+select {
+    appearance: none;
+    -webkit-appearance: none;
+    -moz-appearance: none;
+
+    padding: 10px 14px;
+    border: 1px solid #ccc;
+    border-radius: 8px;
+
+    background: #fff url("data:image/svg+xml;utf8,<svg fill='%23666' height='20' width='20' viewBox='0 0 20 20' xmlns='http://www.w3.org/2000/svg'><polygon points='5,7 10,12 15,7'/></svg>") 
+                no-repeat right 10px center;
+
+    font-size: 14px;
+    color: #333;
+    cursor: pointer;
+
+    min-width: 180px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.06);
+    transition: all 0.2s ease;
+}
+
+select:hover {
+    border-color: #888;
+}
+
+select:focus {
+    outline: none;
+    border-color: #6c5ce7;
+    box-shadow: 0 0 0 3px rgba(108, 92, 231, 0.25);
+}
+
+.select-row select {
+    flex: 1;
+}
+
 </style>
 </head>
 <body>
@@ -80,34 +129,49 @@ h1 {
 
   <!-- Left Panel -->
   <div class="card">
-    <h2 id="company1">Choose JSON File 1</h2>
+    <h2 id="company1">Choose Company Data 1</h2>
 
     <div class="select-row">
       <select id="file1"></select>
       <select id="section1"><option value="">Select section</option></select>
     </div>
 
-    <div class="qa-box">
+    <!-- <div class="qa-box">
       <b>Question:</b><div id="q1"></div><br>
-      <b>answer:</b><div id="a1"></div>
-    </div>
+      <b>Answer:</b><div id="a1"></div>
+    </div> -->
+
+    <!-- LEFT -->
+    <div id="multiLeft" style="margin-top:12px;"></div>
+
   </div>
 
   <!-- Right Panel -->
   <div class="card">
-    <h2 id="company2">Choose JSON File 2</h2>
+    <h2 id="company2">Choose Company Data 2</h2>
 
     <div class="select-row">
       <select id="file2"></select>
       <select id="section2"><option value="">Select section</option></select>
     </div>
 
-    <div class="qa-box">
+    <!-- <div class="qa-box">
       <b>Question:</b><div id="q2"></div><br>
       <b>Answer:</b><div id="a2"></div>
-    </div>
-  </div>
+    </div> -->
 
+    <!-- RIGHT -->
+    <div id="multiRight" style="margin-top:12px;"></div>
+  </div>
+</div>
+
+
+<!-- Load More Button -->
+<div style="text-align:center; margin-top:20px;">
+    <button id="loadMoreBtn"
+        style="padding:10px 16px; border-radius:8px; cursor:pointer;">
+        Load More
+    </button>
 </div>
 
 <!-- Summary -->
@@ -123,7 +187,7 @@ h1 {
   <div style="margin-top:25px; margin-bottom:20px; text-align:center;">
     <button id="genSummaryBtn"
             style="padding:10px 18px; border:1px solid #666; border-radius:8px; background:white; cursor:pointer;">
-        Generate AI Summary
+        Compare with AI
     </button>
 </div>
 
@@ -132,7 +196,7 @@ h1 {
      style="margin-top:20px; padding:10px; background:#fafafa; border-radius:8px; min-height:20px;">
 </div>
 
-  </div>
+</div>
 
 </div>
 
@@ -140,6 +204,21 @@ h1 {
 <script>
 /* Cache for JSON contents */
 const cache = new Map();
+
+
+// ---- Section header mapping ----
+const section_headers = {
+    "1": "Introduction",
+    "2": "Identification, assessment of impacts, risks and opportunities",
+    "3": "Disclosure of risks and opportunities",
+    "4": "Governance",
+    "5": "Business Strategy",
+    "6": "Consolidation Approach",
+    "7": "Climate Change",
+    "9": "Water Security",
+    "13": "Further Information & Sign Off"
+};
+
 
 /* Section maps keyed by filename */
 const sectionMapByFile = new Map();
@@ -158,28 +237,72 @@ document.addEventListener("DOMContentLoaded", () => {
 // ADD synced listeners:
 let syncing = false;
 
-section1.addEventListener("change", () => {
-    if (syncing) return;
-    syncing = true;
 
-    section2.value = section1.value;   // sync the right dropdown
+section1.addEventListener("change", async () => {
+  if (syncing) return;
+  syncing = true;
+  // sync both selects
+  section2.value = section1.value;
 
+  const selected = section1.value;
+  const f1 = file1.value;
+  const f2 = file2.value;
+
+  if (!selected || !f1 || !f2) { syncing = false; return; }
+
+  // load the common list again OR use your cached common array if you keep it
+  const commonRes = await fetch(`/common_sections?file1=${encodeURIComponent(f1)}&file2=${encodeURIComponent(f2)}`).then(r => r.json());
+  const commonList = commonRes.common_sections || [];
+
+  // compute all sections under the same top-level group
+  const groupSections = sectionsForTopLevel(selected, commonList);
+
+  // load JSONs (your loadJson() already caches)
+  const [js1, js2] = await Promise.all([loadJson(f1), loadJson(f2)]);
+
+  // render multi-pairs under each company card (make sure you have #multiLeft and #multiRight in HTML)
+  renderGroupQAs("multiLeft",  js1, groupSections);
+  renderGroupQAs("multiRight", js2, groupSections);
+
+  // (Optional) also show the FIRST section of the group in the single-pair area to keep existing card UI useful
+  if (groupSections.length) {
+    // section1.value = groupSections[0];
+    // section2.value = groupSections[0];
     showQA("file1", "section1", "q1", "a1");
     showQA("file2", "section2", "q2", "a2");
+  }
 
-    syncing = false;
+  syncing = false;
 });
 
-section2.addEventListener("change", () => {
-    if (syncing) return;
-    syncing = true;
+section2.addEventListener("change", async () => {
+  if (syncing) return;
+  syncing = true;
+  section1.value = section2.value;
 
-    section1.value = section2.value;   // sync the left dropdown
+  const selected = section2.value;
+  const f1 = file1.value;
+  const f2 = file2.value;
 
+  if (!selected || !f1 || !f2) { syncing = false; return; }
+
+  const commonRes = await fetch(`/common_sections?file1=${encodeURIComponent(f1)}&file2=${encodeURIComponent(f2)}`).then(r => r.json());
+  const commonList = commonRes.common_sections || [];
+
+  const groupSections = sectionsForTopLevel(selected, commonList);
+
+  const [js1, js2] = await Promise.all([loadJson(f1), loadJson(f2)]);
+  renderGroupQAs("multiLeft",  js1, groupSections);
+  renderGroupQAs("multiRight", js2, groupSections);
+
+  if (groupSections.length) {
+    // section1.value = groupSections[0];
+    // section2.value = groupSections[0];
     showQA("file1", "section1", "q1", "a1");
     showQA("file2", "section2", "q2", "a2");
+  }
 
-    syncing = false;
+  syncing = false;
 });
 });
 
@@ -205,6 +328,17 @@ function fillDropdown(sel, files) {
     });
 }
 
+
+function buildTopLevelGroups(sections) {
+  const groups = new Set();
+  sections.forEach(sec => {
+    const top = sec.split(".")[0];
+    if (/^\d+$/.test(top)) groups.add(top);
+  });
+  return Array.from(groups).sort((a,b) => parseInt(a)-parseInt(b));
+}
+
+
 /* ---------------------------------------------------------- */
 /* MAIN CHANGE: load sections ONLY WHEN BOTH FILES SELECTED   */
 /* ---------------------------------------------------------- */
@@ -212,31 +346,55 @@ function loadSectionsIfBothSelected() {
     const f1 = file1.value;
     const f2 = file2.value;
 
+    // If either file not chosen → reset everything
     if (!f1 || !f2) {
         section1.innerHTML = '<option value="">drop down to select section</option>';
         section2.innerHTML = '<option value="">drop down to select section</option>';
+
+        // clear multi-QA areas if they exist
+        if (document.getElementById("multiLeft"))  document.getElementById("multiLeft").innerHTML  = "";
+        if (document.getElementById("multiRight")) document.getElementById("multiRight").innerHTML = "";
+
         return;
     }
 
-    // 1) fetch common sections
-    fetch(`/common_sections?file1=${f1}&file2=${f2}`)
+    // Build safe URL
+    const url = `/common_sections?file1=${encodeURIComponent(f1)}&file2=${encodeURIComponent(f2)}`;
+
+    // Fetch intersection of section numbers
+    fetch(url)
         .then(r => r.json())
         .then(data => {
             const common = data.common_sections || [];
 
-            // Populate both dropdowns
-            populateSectionDropdown(section1, common);
-            populateSectionDropdown(section2, common);
+            // 🔥 CRITICAL: update global intersection
+            commonSections = common;
 
-            // 2) Load both JSON files to compute summary
+            // 🔥 Show FEWER values: only top‑level groups (1, 2, 7, ...)
+            const groups = buildTopLevelGroups(commonSections);
+
+            populateSectionDropdown(section1, groups);
+            populateSectionDropdown(section2, groups);
+
+            // Clear any existing Q/A on file switch
+            if (document.getElementById("q1")) q1.textContent = "";
+            if (document.getElementById("a1")) a1.textContent = "";
+            if (document.getElementById("q2")) q2.textContent = "";
+            if (document.getElementById("a2")) a2.textContent = "";
+
+            // Clear multi-QA
+            if (document.getElementById("multiLeft"))  document.getElementById("multiLeft").innerHTML = "";
+            if (document.getElementById("multiRight")) document.getElementById("multiRight").innerHTML = "";
+
+            // Summary calculations
             Promise.all([loadJson(f1), loadJson(f2)])
                 .then(([js1, js2]) => {
                     const sec1 = extractSections(js1);
                     const sec2 = extractSections(js2);
 
-                    const { checkboxCount, descriptiveCount } = countAnswerTypes(js1, js2);
+                    const { checkboxCount, descriptiveCount } =
+                        countAnswerTypes(js1, js2);
 
-                    // Summary update
                     document.getElementById("sum-common").textContent = common.length;
                     document.getElementById("sum-file1").textContent = sec1.size;
                     document.getElementById("sum-file2").textContent = sec2.size;
@@ -374,8 +532,82 @@ function compareDotted(a, b) {
     return 0;
 }
 
+// Find a single Q/A item by exact section in a JSON that uses top-level numeric page keys
+function findBySection(js, sectionNo) {
+  for (const k of Object.keys(js)) {
+    if (/^\d+$/.test(k)) {
+      const arr = js[k] || [];
+      const hit = arr.find(e => e.section === sectionNo);
+      if (hit) return hit;
+    }
+  }
+  return null;
+}
+
+// Render MANY Q/As into a container, preserving order by dotted-number compare
+// global pagination store
+let pagination = {
+    left: { sections: [], index: 0, js: null },
+    right: { sections: [], index: 0, js: null }
+};
+
+function renderGroupQAs(containerId, js, sections) {
+    const isLeft = containerId === "multiLeft";
+    const store = isLeft ? pagination.left : pagination.right;
+
+    // Reset pagination state every time a new section group loads
+    store.sections = [...sections].sort(compareDotted);
+    store.index = 0;
+    store.js = js;
+
+    // Clear container
+    document.getElementById(containerId).innerHTML = "";
+
+    // Render first batch
+    renderNextBatch(containerId, store);
+}
+
+// Load next 5 sections
+function renderNextBatch(containerId, store) {
+    const el = document.getElementById(containerId);
+
+    const next = store.sections.slice(store.index, store.index + 5);
+    store.index += next.length;
+
+    next.forEach(sec => {
+        const item = findBySection(store.js, sec);
+        const q = item?.question ?? "";
+        const a = (item?.answer ?? "").replace(/\n/g, "<br>");
+
+        el.insertAdjacentHTML(
+            "beforeend",
+            `
+            <div class="qa-card">
+                <div class="sec"><b>§ ${sec}</b></div>
+                <div class="q"><b>Question:</b><div>${q}</div></div>
+                <div class="a"><b>Answer:</b><br>${a}</div>
+            </div>
+            `
+        );
+    });
+}
+
+
+document.getElementById("loadMoreBtn").addEventListener("click", () => {
+    renderNextBatch("multiLeft", pagination.left);
+    renderNextBatch("multiRight", pagination.right);
+});
+// Given the currently selected detailed section (e.g., "7.1.2"),
+// return the list of *common* sections that belong to the same top-level group "7"
+function sectionsForTopLevel(selectedSection, commonList) {
+  if (!selectedSection) return [];
+  const top = selectedSection.split(".")[0]; // "7"
+  return (commonList || []).filter(sec => sec === top || sec.startsWith(top + "."));
+}
+
+
 // --------------------------------------------------------------------
-// NEW: Generate Summary Button => Calls our /extract_sections endpoint
+// Generate Summary Button => Calls our /extract_sections endpoint
 // --------------------------------------------------------------------
 /** Minimal, dependency-free formatter for our server's summary text.
  *  - Supports #/##/### headings, bullets (- * •), numbered lists, bold/italic/code, links, paragraphs.
@@ -487,7 +719,10 @@ document.getElementById("genSummaryBtn").addEventListener("click", () => {
   }
 
   // Hardcode prefix = 7 for now (can be user-editable later)
-  const prefix = "7";
+
+  // Extract top-level prefix from the section dropdown
+  const selected = section1.value;
+  const prefix = selected ? selected.split(".")[0] : "";
 
   const url =
     `/extract_sections?prefix=${encodeURIComponent(prefix)}`
@@ -496,7 +731,16 @@ document.getElementById("genSummaryBtn").addEventListener("click", () => {
 
   // Status message: keep as plain text
   const container = document.getElementById("sectionSummary");
-  container.textContent = "Generating AI Summary…";
+
+  // Extract top-level section number
+  const topSection = section1.value.split(".")[0];
+
+  // Map title (fallback = "")
+  const sectionTitle = section_headers[topSection] || "";
+
+  // Show message with section title
+  container.textContent = `Generating AI Based Insights... ${sectionTitle}`;
+
 
   fetch(url)
     .then((r) => r.json())

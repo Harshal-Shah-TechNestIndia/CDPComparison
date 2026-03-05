@@ -5,9 +5,8 @@ from pypdf import PdfReader
 from autogen_ext.models.anthropic import AnthropicBedrockChatCompletionClient, BedrockInfo
 from autogen_core.models import ModelInfo
 from autogen_agentchat.agents import AssistantAgent
-from autogen_agentchat.teams import RoundRobinGroupChat
-from autogen_agentchat.conditions import TextMentionTermination
-from autogen_core import CancellationToken
+from autogen_ext.models.openai import OpenAIChatCompletionClient
+
 from prompts import *
 import os
 from dotenv import load_dotenv
@@ -48,6 +47,11 @@ class BaseAgent:
                 family="claude-3-7-sonnet",
                 structured_output=True,
             )
+        )
+
+        self.client = OpenAIChatCompletionClient(
+            model="gpt-4o-2024-08-06",
+            # api_key="sk-...", # Optional if you have an OPENAI_API_KEY environment variable set.
         )
 
         # Create the assistant agent
@@ -96,8 +100,8 @@ class BaseAgent:
     async def _analyze_extracted_text(self, text: str, query: str = None, default_message: str = None, save_path: str = None) -> str:
         """Analyze extracted text content."""
         # Prepare the message with the extracted text
-        if query:
-            message = f"Please compare the results from both companies and provide key insights {query}\n\nDocument content:\n{text}"
+        if text:
+            message = f"Please compare the data from both companies and extract key insights.\n\n\n{text}"
         else:
             message = default_message or f"Please analyze this document and provide key insights:\n\nDocument content:\n{text}"
         
