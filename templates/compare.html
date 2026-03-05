@@ -141,7 +141,7 @@ h1 {
   <div style="margin-top:25px; margin-bottom:20px; text-align:center;">
     <button id="genSummaryBtn"
             style="padding:10px 18px; border:1px solid #666; border-radius:8px; background:white; cursor:pointer;">
-        Generate AI Summary
+        Compare with AI
     </button>
 </div>
 
@@ -205,8 +205,8 @@ section1.addEventListener("change", async () => {
 
   // (Optional) also show the FIRST section of the group in the single-pair area to keep existing card UI useful
   if (groupSections.length) {
-    section1.value = groupSections[0];
-    section2.value = groupSections[0];
+    // section1.value = groupSections[0];
+    // section2.value = groupSections[0];
     showQA("file1", "section1", "q1", "a1");
     showQA("file2", "section2", "q2", "a2");
   }
@@ -235,8 +235,8 @@ section2.addEventListener("change", async () => {
   renderGroupQAs("multiRight", js2, groupSections);
 
   if (groupSections.length) {
-    section1.value = groupSections[0];
-    section2.value = groupSections[0];
+    // section1.value = groupSections[0];
+    // section2.value = groupSections[0];
     showQA("file1", "section1", "q1", "a1");
     showQA("file2", "section2", "q2", "a2");
   }
@@ -285,31 +285,55 @@ function loadSectionsIfBothSelected() {
     const f1 = file1.value;
     const f2 = file2.value;
 
+    // If either file not chosen → reset everything
     if (!f1 || !f2) {
         section1.innerHTML = '<option value="">drop down to select section</option>';
         section2.innerHTML = '<option value="">drop down to select section</option>';
+
+        // clear multi-QA areas if they exist
+        if (document.getElementById("multiLeft"))  document.getElementById("multiLeft").innerHTML  = "";
+        if (document.getElementById("multiRight")) document.getElementById("multiRight").innerHTML = "";
+
         return;
     }
 
-    // 1) fetch common sections
-    fetch(`/common_sections?file1=${f1}&file2=${f2}`)
+    // Build safe URL
+    const url = `/common_sections?file1=${encodeURIComponent(f1)}&file2=${encodeURIComponent(f2)}`;
+
+    // Fetch intersection of section numbers
+    fetch(url)
         .then(r => r.json())
         .then(data => {
             const common = data.common_sections || [];
 
-            // Populate both dropdowns
-            populateSectionDropdown(section1, common);
-            populateSectionDropdown(section2, common);
+            // 🔥 CRITICAL: update global intersection
+            commonSections = common;
 
-            // 2) Load both JSON files to compute summary
+            // 🔥 Show FEWER values: only top‑level groups (1, 2, 7, ...)
+            const groups = buildTopLevelGroups(commonSections);
+
+            populateSectionDropdown(section1, groups);
+            populateSectionDropdown(section2, groups);
+
+            // Clear any existing Q/A on file switch
+            if (document.getElementById("q1")) q1.textContent = "";
+            if (document.getElementById("a1")) a1.textContent = "";
+            if (document.getElementById("q2")) q2.textContent = "";
+            if (document.getElementById("a2")) a2.textContent = "";
+
+            // Clear multi-QA
+            if (document.getElementById("multiLeft"))  document.getElementById("multiLeft").innerHTML = "";
+            if (document.getElementById("multiRight")) document.getElementById("multiRight").innerHTML = "";
+
+            // Summary calculations
             Promise.all([loadJson(f1), loadJson(f2)])
                 .then(([js1, js2]) => {
                     const sec1 = extractSections(js1);
                     const sec2 = extractSections(js2);
 
-                    const { checkboxCount, descriptiveCount } = countAnswerTypes(js1, js2);
+                    const { checkboxCount, descriptiveCount } =
+                        countAnswerTypes(js1, js2);
 
-                    // Summary update
                     document.getElementById("sum-common").textContent = common.length;
                     document.getElementById("sum-file1").textContent = sec1.size;
                     document.getElementById("sum-file2").textContent = sec2.size;
