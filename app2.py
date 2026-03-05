@@ -125,13 +125,13 @@ async def summarize(text):
 #     process(company_name2,pdf_source2)
 
 
-input_path = "output_corporate.json"
+# input_path = "output_corporate.json"
 
-with open(input_path, "r", encoding="utf-8") as f:
-    data = json.load(f)
+# with open(input_path, "r", encoding="utf-8") as f:
+#     data = json.load(f)
 
-# Extract all 7.* Q&A
-qas_7 = extract_section_based_qas(data)
+# # Extract all 7.* Q&A
+# qas_7 = extract_section_based_qas(data)
 
 # print(f"Found {len(qas_7)} Q&A entries starting with section '7.'")
 

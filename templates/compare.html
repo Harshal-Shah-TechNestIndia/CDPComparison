@@ -88,7 +88,7 @@ h1 {
     </div>
 
     <div class="qa-box">
-      <b>question:</b><div id="q1"></div><br>
+      <b>Question:</b><div id="q1"></div><br>
       <b>answer:</b><div id="a1"></div>
     </div>
   </div>
@@ -103,8 +103,8 @@ h1 {
     </div>
 
     <div class="qa-box">
-      <b>question:</b><div id="q2"></div><br>
-      <b>answer:</b><div id="a2"></div>
+      <b>Question:</b><div id="q2"></div><br>
+      <b>Answer:</b><div id="a2"></div>
     </div>
   </div>
 
@@ -123,7 +123,7 @@ h1 {
   <div style="margin-top:25px; margin-bottom:20px; text-align:center;">
     <button id="genSummaryBtn"
             style="padding:10px 18px; border:1px solid #666; border-radius:8px; background:white; cursor:pointer;">
-        Generate Summary
+        Generate AI Summary
     </button>
 </div>
 
@@ -496,7 +496,7 @@ document.getElementById("genSummaryBtn").addEventListener("click", () => {
 
   // Status message: keep as plain text
   const container = document.getElementById("sectionSummary");
-  container.textContent = "Generating summary…";
+  container.textContent = "Generating AI Summary…";
 
   fetch(url)
     .then((r) => r.json())
