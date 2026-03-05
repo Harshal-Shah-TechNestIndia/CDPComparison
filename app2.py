@@ -101,7 +101,16 @@ def extract_section_based_qas(data, prefix = "7"):
                 # )
                 # results.append(result)
 
-    results = [f"---\n"f"Section: {result["section"]}\nQuestion: {result["question"]}\nAnswer: {result["answer"]}\n\n" for result in results[-15:]]
+    # results = [f"---\n"f"Section: {result["section"]}\nQuestion: {result["question"]}\nAnswer: {result["answer"]}\n\n" for result in results[-15:]]
+    
+    results = [
+        f"---\n"
+        f"Section: {result['section']}\n"
+        f"Question: {result['question']}\n"
+        f"Answer: {result['answer']}\n\n"
+        for result in results[-15:]
+    ]
+
     return "\n\n".join(results)
 
 
