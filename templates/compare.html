@@ -68,6 +68,7 @@ h1 {
 .qa-card .sec { font-weight: 700; color: #374151; margin-bottom: 6px; }
 .qa-card .q   { margin: 6px 0; }
 .qa-card .a   { margin: 6px 0; color: #1f2937; }
+
 </style>
 </head>
 <body>
@@ -106,6 +107,7 @@ h1 {
 
     <!-- LEFT -->
     <div id="multiLeft" style="margin-top:12px;"></div>
+
   </div>
 
   <!-- Right Panel -->
@@ -125,8 +127,14 @@ h1 {
     <!-- RIGHT -->
     <div id="multiRight" style="margin-top:12px;"></div>
   </div>
-
 </div>
+
+<div style="text-align:center; margin-top:20px;">
+        <button id="loadMoreBtn"
+            style="padding:10px 16px; border-radius:8px; cursor:pointer;">
+            Load More
+        </button>
+    </div>
 
 <!-- Summary -->
 <div class="summary-box">
@@ -150,7 +158,7 @@ h1 {
      style="margin-top:20px; padding:10px; background:#fafafa; border-radius:8px; min-height:20px;">
 </div>
 
-  </div>
+</div>
 
 </div>
 
@@ -158,6 +166,21 @@ h1 {
 <script>
 /* Cache for JSON contents */
 const cache = new Map();
+
+
+// ---- Section header mapping ----
+const section_headers = {
+    "1": "Introduction",
+    "2": "Identification, assessment of impacts, risks and opportunities",
+    "3": "Disclosure of risks and opportunities",
+    "4": "Governance",
+    "5": "Business Strategy",
+    "6": "Consolidation Approach",
+    "7": "Climate Change",
+    "9": "Water Security",
+    "13": "Further Information & Sign Off"
+};
+
 
 /* Section maps keyed by filename */
 const sectionMapByFile = new Map();
@@ -484,30 +507,58 @@ function findBySection(js, sectionNo) {
 }
 
 // Render MANY Q/As into a container, preserving order by dotted-number compare
+// global pagination store
+let pagination = {
+    left: { sections: [], index: 0, js: null },
+    right: { sections: [], index: 0, js: null }
+};
+
 function renderGroupQAs(containerId, js, sections) {
-  const el = document.getElementById(containerId);
-  el.innerHTML = "";
-  if (!sections.length) {
-    el.textContent = "(No sections in this group)";
-    return;
-  }
-  const sorted = [...sections].sort(compareDotted);
-  sorted.forEach(sec => {
-    const item = findBySection(js, sec);
-    const q = item?.question || "";
-    const a = (item?.answer || "").replace(/\n/g, "<br>");
-    el.insertAdjacentHTML(
-      "beforeend",
-      `<div class="qa-card">
-         <div class="sec"><b>§ ${sec}</b></div>
-         <div class="q"><b>Question:</b><div>${q}</div></div>
-         <div class="a"><b>Answer:</b><br>${a}</div>
-         
-       </div>`
-    );
-  });
+    const isLeft = containerId === "multiLeft";
+    const store = isLeft ? pagination.left : pagination.right;
+
+    // Reset pagination state every time a new section group loads
+    store.sections = [...sections].sort(compareDotted);
+    store.index = 0;
+    store.js = js;
+
+    // Clear container
+    document.getElementById(containerId).innerHTML = "";
+
+    // Render first batch
+    renderNextBatch(containerId, store);
 }
 
+// Load next 5 sections
+function renderNextBatch(containerId, store) {
+    const el = document.getElementById(containerId);
+
+    const next = store.sections.slice(store.index, store.index + 5);
+    store.index += next.length;
+
+    next.forEach(sec => {
+        const item = findBySection(store.js, sec);
+        const q = item?.question ?? "";
+        const a = (item?.answer ?? "").replace(/\n/g, "<br>");
+
+        el.insertAdjacentHTML(
+            "beforeend",
+            `
+            <div class="qa-card">
+                <div class="sec"><b>§ ${sec}</b></div>
+                <div class="q"><b>Question:</b><div>${q}</div></div>
+                <div class="a"><b>Answer:</b><br>${a}</div>
+            </div>
+            `
+        );
+    });
+}
+
+
+document.getElementById("loadMoreBtn").addEventListener("click", () => {
+    renderNextBatch("multiLeft", pagination.left);
+    renderNextBatch("multiRight", pagination.right);
+});
 // Given the currently selected detailed section (e.g., "7.1.2"),
 // return the list of *common* sections that belong to the same top-level group "7"
 function sectionsForTopLevel(selectedSection, commonList) {
@@ -642,7 +693,16 @@ document.getElementById("genSummaryBtn").addEventListener("click", () => {
 
   // Status message: keep as plain text
   const container = document.getElementById("sectionSummary");
-  container.textContent = "Generating AI Summary…";
+
+  // Extract top-level section number
+  const topSection = section1.value.split(".")[0];
+
+  // Map title (fallback = "")
+  const sectionTitle = section_headers[topSection] || "";
+
+  // Show message with section title
+  container.textContent = `Generating AI Based Insights... ${sectionTitle}`;
+
 
   fetch(url)
     .then((r) => r.json())
