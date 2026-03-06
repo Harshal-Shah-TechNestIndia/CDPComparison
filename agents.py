@@ -49,10 +49,19 @@ class BaseAgent:
             )
         )
 
-        self.client = OpenAIChatCompletionClient(
-            model="gpt-4o-2024-08-06",
-            # api_key="sk-...", # Optional if you have an OPENAI_API_KEY environment variable set.
-        )
+        # self.client = OpenAIChatCompletionClient(
+        #     model="gemini-2.0-flash",
+        #     # api_key="sk-...", # Optional if you have an OPENAI_API_KEY environment variable set.
+        #     api_key = "AIzaSyBnomj8-0L2BENgg6rqGkufAu0B0sx1Rek",
+        #     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+        #     model_info={
+        #         "vision": True,
+        #         "function_calling": True,
+        #         "json_output": True,
+        #         "family": "gemini",
+        #         "structured_output": True
+        #         }
+        # )
 
         # Create the assistant agent
         self.agent = AssistantAgent(
