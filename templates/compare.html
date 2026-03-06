@@ -318,15 +318,34 @@ function loadJsonFiles() {
         });
 }
 
+// function fillDropdown(sel, files) {
+//     sel.innerHTML = '<option value="">Select JSON file</option>';
+//     files.forEach(f => {
+//         const opt = document.createElement("option");
+//         opt.value = f;
+//         opt.textContent = f;
+//         sel.appendChild(opt);
+//     });
+// }
+
 function fillDropdown(sel, files) {
-    sel.innerHTML = '<option value="">Select JSON file</option>';
-    files.forEach(f => {
-        const opt = document.createElement("option");
-        opt.value = f;
-        opt.textContent = f;
-        sel.appendChild(opt);
-    });
+  sel.innerHTML = '<option value="">Select JSON file</option>';
+
+  files.forEach(async (filename) => {
+    const opt = document.createElement("option");
+    opt.value = filename;   // ✔ VALUE remains filename
+
+    // ▼ NEW: fetch company name for label
+    const res = await fetch(`/json?file=${filename}`);
+    const js = await res.json();
+    const company = js.company_name || filename;
+
+    opt.textContent = company;   // ✔ LABEL shows company name
+
+    sel.appendChild(opt);
+  });
 }
+
 
 
 function buildTopLevelGroups(sections) {
@@ -483,15 +502,39 @@ function extractSections(js) {
 }
 
 /* Populate dropdown with common sections */
+// function populateSectionDropdown(sel, sections) {
+//     sel.innerHTML = '<option value="">drop down to select section</option>';
+//     sections.forEach(sec => {
+//         const opt = document.createElement("option");
+//         opt.value = sec;
+//         opt.textContent = sec;
+//         sel.appendChild(opt);
+//     });
+// }
+
+
 function populateSectionDropdown(sel, sections) {
-    sel.innerHTML = '<option value="">drop down to select section</option>';
-    sections.forEach(sec => {
-        const opt = document.createElement("option");
-        opt.value = sec;
-        opt.textContent = sec;
-        sel.appendChild(opt);
-    });
+  sel.innerHTML = '<option value="">drop down to select section</option>';
+
+  sections.forEach(sec => {
+    const opt = document.createElement("option");
+
+    // Keep the value EXACTLY as before (e.g., "7" or "7.1.2")
+    opt.value = sec;
+
+    // Determine the top-level number (e.g., "7" from "7.1.2")
+    const top = String(sec).split(".")[0];
+
+    // Pick a friendly header from the provided map (fallback to empty string)
+    const title = section_headers[top] || "";
+
+    // Show: "7 - Climate Change" or "7.1.2 - Climate Change"
+    opt.textContent = title ? `${sec} - ${title}` : `${sec}`;
+
+    sel.appendChild(opt);
+  });
 }
+
 
 /* -------------------- */
 /* Show Q/A for a file  */
@@ -571,7 +614,7 @@ function renderGroupQAs(containerId, js, sections) {
 function renderNextBatch(containerId, store) {
     const el = document.getElementById(containerId);
 
-    const next = store.sections.slice(store.index, store.index + 5);
+    const next = store.sections.slice(store.index, store.index + 3);
     store.index += next.length;
 
     next.forEach(sec => {

@@ -6,7 +6,18 @@ advisor_agent_prompt = """You are a sustainability analysis assistant.
             - Notice Differences between answers provided by both suppliers and compare their efforts.
             
             Create a detailed set of requirements that a supplier needs to meet the company's criteria.
-            Make sure your Answer is in Bullet Points and Clear."""
+            Make sure your Answer is in Bullet Points and Clear.
+            
+            Sample header
+            ```
+            Comparison of Sustainability Efforts: <Company Name1> vs <Company Name2>
+            Topic of Comparison: <Topic Name>
+                ...
+                ...
+            
+            Reducing Carbon FootPrint
+            ```
+            """
 
 supplier_research_prompt = """
             You are a Supplier Research Assistant.
