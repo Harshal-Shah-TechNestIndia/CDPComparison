@@ -261,7 +261,7 @@ def extract_sections_endpoint():
         result_str1 = extract_section_based_qas(data1, prefix=prefix)  # returns a single formatted string
         result_str2 = extract_section_based_qas(data2, prefix=prefix)  # returns a single formatted string
         
-        merged_result_str = f"Topic of Comparison: {section_headers.get(prefix, "Emission Control")} Data from {file1}:- \n {result_str1}\n\nData from {file2}:- \n {result_str2}"
+        merged_result_str = f"Topic of Comparison: {section_headers.get(prefix, 'Emission Control')} Data from {file1}:- \n {result_str1}\n\nData from {file2}:- \n {result_str2}"
 
         # print(f"Raw Data {merged_result_str}")
 
