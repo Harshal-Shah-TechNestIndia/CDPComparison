@@ -244,11 +244,24 @@ def extract_sections_endpoint():
     # merged.update(data2)
 
     print(f"prefix {prefix} file1 {file1} and file2 {file2}")
+
+    section_headers = {
+        "1": "Introduction",
+        "2": "Identification, assessment of impacts, risks and opportunities",
+        "3": "Disclosure of risks and opportunities",
+        "4": "Governance",
+        "5": "Business Strategy",
+        "6": "Consolidation Approach",
+        "7": "Climate Change",
+        "9": "Water Security",
+        "13": "Further Information & Sign Off"
+    }
+
     try:
         result_str1 = extract_section_based_qas(data1, prefix=prefix)  # returns a single formatted string
         result_str2 = extract_section_based_qas(data2, prefix=prefix)  # returns a single formatted string
         
-        merged_result_str = f"Data from {file1}:- \n {result_str1}\n\nData from {file2}:- \n {result_str2}"
+        merged_result_str = f"Topic of Comparison: {section_headers.get(prefix, "Emission Control")} Data from {file1}:- \n {result_str1}\n\nData from {file2}:- \n {result_str2}"
 
         # print(f"Raw Data {merged_result_str}")
 
