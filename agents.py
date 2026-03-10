@@ -22,6 +22,8 @@ AWS_ACCESS_KEY_ID = os.environ.get("AWS_ACCESS_KEY_ID")
 AWS_SECRET_ACCESS_KEY = os.environ.get("AWS_SECRET_ACCESS_KEY")
 # AWS_SESSION_TOKEN = os.environ.get("AWS_SESSION_TOKEN")  # optional for temporary creds
 
+GOOGLE_API_KEY = os.environ.get("GOOGLE_API_KEY","")
+
 
 class BaseAgent:
     """Base class for agents with common Bedrock client setup and PDF processing functionality."""
@@ -49,19 +51,19 @@ class BaseAgent:
             )
         )
 
-        # self.client = OpenAIChatCompletionClient(
-        #     model="gemini-2.0-flash",
-        #     # api_key="sk-...", # Optional if you have an OPENAI_API_KEY environment variable set.
-        #     api_key = "AIzaSyBnomj8-0L2BENgg6rqGkufAu0B0sx1Rek",
-        #     base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
-        #     model_info={
-        #         "vision": True,
-        #         "function_calling": True,
-        #         "json_output": True,
-        #         "family": "gemini",
-        #         "structured_output": True
-        #         }
-        # )
+        self.client = OpenAIChatCompletionClient(
+            model="gemini-2.5-flash",
+            # api_key="sk-...", # Optional if you have an OPENAI_API_KEY environment variable set.
+            api_key = os.environ.get("GOOGLE_API_KEY",""),
+            # base_url="https://generativelanguage.googleapis.com/v1beta/openai/",
+            # model_info={
+            #     "vision": True,
+            #     "function_calling": True,
+            #     "json_output": True,
+            #     "family": "gemini",
+            #     "structured_output": True
+            #     }
+        )
 
         # Create the assistant agent
         self.agent = AssistantAgent(
@@ -203,3 +205,5 @@ class SummarizingAgent(BaseAgent):
         )
 
         return result
+    
+

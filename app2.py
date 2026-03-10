@@ -108,7 +108,7 @@ def extract_section_based_qas(data, prefix = "7"):
         f"Section: {result['section']}\n"
         f"Question: {result['question']}\n"
         f"Answer: {result['answer']}\n\n"
-        for result in results[-15:]
+        for result in results[:]
     ]
 
     return "\n\n".join(results)
@@ -160,5 +160,7 @@ async def summarize(text):
 # including summarization, reasoning, and coding assistance. They are
 # increasingly used in enterprise systems to automate document analysis.
 # """
+
+
 # import asyncio
-# asyncio.run(summarize(text))
+# print(asyncio.run(summarize(text)))
